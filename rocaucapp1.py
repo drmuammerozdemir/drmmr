@@ -33,6 +33,9 @@ if uploaded_file:
         ["coolwarm", "vlag", "rocket", "mako", "icefire"]
     )
 
+    # NEW: Download DPI for images
+    download_dpi = st.sidebar.number_input("Download DPI", min_value=72, max_value=1200, value=300, step=10)
+
     st.sidebar.header("Select Analysis")
     analysis_type = st.sidebar.radio("Choose Analysis", 
                                       ["Correlation Heatmap", "Single ROC Curve", "Multiple ROC Curves"])
@@ -44,11 +47,14 @@ if uploaded_file:
             default=df.select_dtypes(include=[np.number]).columns.tolist()
         )
 
+        # NEW: Correlation method selector
+        corr_method = st.sidebar.selectbox("Correlation Method", ["Spearman", "Pearson"])
+
         if len(correlation_vars) < 2:
             st.warning("Select at least 2 numeric variables.")
             st.stop()
 
-        heatmap_title = st.sidebar.text_input("Heatmap Title", value="Spearman Correlation Heatmap")
+        heatmap_title = st.sidebar.text_input("Heatmap Title", value="Correlation Heatmap")
         custom_names = {}
         for col in correlation_vars:
             new_name = st.sidebar.text_input(f"Rename '{col}'", value=col)
@@ -60,9 +66,9 @@ if uploaded_file:
         df_corr = df_corr.dropna()
         df_corr.rename(columns=custom_names, inplace=True)
 
-        corr, _ = spearmanr(df_corr)
-        columns = df_corr.columns
-        corr_df = pd.DataFrame(corr, index=columns, columns=columns)
+        # NEW: Compute correlation by selected method (using pandas .corr)
+        method_key = "spearman" if corr_method.lower() == "spearman" else "pearson"
+        corr_df = df_corr.corr(method=method_key)
 
         mask = np.triu(np.ones_like(corr_df, dtype=bool))
 
@@ -72,7 +78,7 @@ if uploaded_file:
             annot=True, fmt=".2f", square=True, linewidths=.5, cbar_kws={"shrink": .75}, ax=ax
         )
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
-        ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+        ax.set_yticklabels(ax.get_xticklabels(), rotation=0)
         ax.set_aspect('equal', adjustable='box')
         fig.tight_layout()
         plt.title(heatmap_title)
@@ -83,11 +89,12 @@ if uploaded_file:
         if footnote:
             st.markdown(f"**Note:** {footnote}")
 
+        # Use selected DPI for downloads
         buf = BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=download_dpi)
         st.download_button("Download PNG", buf.getvalue(), file_name="heatmap.png", mime="image/png")
         buf.seek(0)
-        fig.savefig(buf, format="jpg", bbox_inches="tight")
+        fig.savefig(buf, format="jpg", bbox_inches="tight", dpi=download_dpi)
         st.download_button("Download JPG", buf.getvalue(), file_name="heatmap.jpg", mime="image/jpeg")
 
     if analysis_type == "Single ROC Curve":
