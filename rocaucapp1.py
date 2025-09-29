@@ -45,7 +45,7 @@ def bootstrap_auc_ci(y_true, y_score, n_boot=1000, alpha=0.05, random_state=42):
         return base_auc, (np.nan, np.nan)
     lo = np.quantile(aucs, alpha/2)
     hi = np.quantile(aucs, 1 - alpha/2)
-    return base_auc, (lo, hi))
+    return base_auc, (lo, hi)
 
 def youden_best_threshold(fpr, tpr, thr):
     j = tpr - fpr
@@ -391,3 +391,4 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 # =========================
 if df is None:
     st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav).")
+
