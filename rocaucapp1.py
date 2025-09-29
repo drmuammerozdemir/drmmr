@@ -72,13 +72,14 @@ if uploaded_file:
 
         mask = np.triu(np.ones_like(corr_df, dtype=bool))
 
-        fig, ax = plt.subplots(figsize=(10, 8))
+        fig, ax = plt.subplots(figsize=(12, 10))
         sns.heatmap(
             corr_df, mask=mask, cmap=palette_choice, center=0,
-            annot=True, fmt=".2f", square=True, linewidths=.5, cbar_kws={"shrink": .75}, ax=ax
+            annot=True, fmt=".2f", square=True, linewidths=.5,
+            cbar_kws={"shrink": .75}, ax=ax, annot_kws={"size":8}
         )
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
-        ax.set_yticklabels(ax.get_xticklabels(), rotation=0)
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right', fontsize=9)
+        ax.set_yticklabels(ax.get_xticklabels(), rotation=0, fontsize=9)
         ax.set_aspect('equal', adjustable='box')
         fig.tight_layout()
         plt.title(heatmap_title)
@@ -183,3 +184,4 @@ if uploaded_file:
         buf.seek(0)
         fig.savefig(buf, format="jpg", bbox_inches="tight")
         st.download_button("Download JPG", buf.getvalue(), file_name="multi_roc.jpg", mime="image/jpeg")
+
