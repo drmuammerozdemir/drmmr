@@ -133,6 +133,11 @@ palette_choice = st.sidebar.selectbox(
     ["coolwarm", "vlag", "rocket", "mako", "icefire"]
 )
 
+download_dpi = st.sidebar.number_input(
+    "Download DPI",
+    min_value=72, max_value=1200, value=300, step=10
+)
+
 st.sidebar.header("Select Analysis")
 analysis_type = st.sidebar.radio(
     "Choose Analysis",
@@ -153,7 +158,10 @@ if df is not None and analysis_type == "Correlation Heatmap":
         st.warning("Select at least 2 variables.")
         st.stop()
 
-    heatmap_title = st.sidebar.text_input("Heatmap Title", value="Spearman Correlation Heatmap")
+    corr_method = st.sidebar.selectbox("Correlation Method", ["Spearman", "Pearson"], index=0)
+    method_key = "spearman" if corr_method.lower() == "spearman" else "pearson"
+
+    heatmap_title = st.sidebar.text_input("Heatmap Title", value=f"{corr_method} Correlation Heatmap")
 
     custom_names = {}
     for col in correlation_vars:
@@ -164,7 +172,7 @@ if df is not None and analysis_type == "Correlation Heatmap":
 
     # Pairwise Spearman
     num = df[correlation_vars].apply(pd.to_numeric, errors='coerce')
-    corr_df = num.corr(method='spearman')  # pairwise; satır drop yok
+    corr_df = num.corr(method=method_key)  # pairwise; satır drop yok
 
     corr_df.rename(columns=custom_names, index=custom_names, inplace=True)
     mask = np.triu(np.ones_like(corr_df, dtype=bool))
@@ -188,7 +196,7 @@ if df is not None and analysis_type == "Correlation Heatmap":
     # İndirmeler
     for ext, mime in [('png','image/png'), ('jpg','image/jpeg')]:
         buf = BytesIO()
-        fig.savefig(buf, format=ext, bbox_inches="tight", dpi=300)
+        fig.savefig(buf, format=ext, bbox_inches="tight", dpi=download_dpi)
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
                            file_name=f"heatmap.{ext}", mime=mime)
 
@@ -392,5 +400,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 # =========================
 if df is None:
     st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav).")
+
 
 
