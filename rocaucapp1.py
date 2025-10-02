@@ -169,15 +169,16 @@ if df is not None and analysis_type == "Correlation Heatmap":
     corr_df.rename(columns=custom_names, index=custom_names, inplace=True)
     mask = np.triu(np.ones_like(corr_df, dtype=bool))
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(12, 10))
     sns.heatmap(
         corr_df, mask=mask, cmap=palette_choice, center=0,
         annot=True, fmt=".2f", square=False, linewidths=.5,
-        cbar_kws={"shrink": .8}, ax=ax
+        cbar_kws={"shrink": .75}, ax=ax, annot_kws={"size":8}
     )
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right', fontsize=9)
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=9)
     ax.set_title(heatmap_title, pad=12)
+    ax.set_aspect('equal', adjustable='box')
     fig.tight_layout()
     st.pyplot(fig)
 
@@ -391,4 +392,5 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 # =========================
 if df is None:
     st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav).")
+
 
