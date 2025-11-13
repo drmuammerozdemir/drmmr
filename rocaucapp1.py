@@ -9,7 +9,7 @@ from sklearn.metrics import roc_curve, auc
 from scipy.stats import spearmanr, mannwhitneyu, norm
 from io import BytesIO
 import math
-import pydelong # <<< GÜNCELLENDİ: DeLong testi için pydelong kullan
+import delong_roc # <<< GÜNCELLENDİ: Doğru kütüphane adı
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
@@ -140,7 +140,8 @@ if uploaded_file:
 
 if df is not None:
     st.write('**Data Preview:**')
-    st.dataframe(df.head(), use_container_width=True)
+    # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
+    st.dataframe(df.head(), width='stretch')
 
 # =========================
 # Sidebar: Genel seçenekler
@@ -300,7 +301,8 @@ if df is not None and analysis_type == "Single ROC Curve":
     df_summary = make_diag_summary_table(summary)
 
     st.subheader("ROC curve analysis and statistical diagnostic measures")
-    st.dataframe(df_summary, use_container_width=True)
+    # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
+    st.dataframe(df_summary, width='stretch')
     st.download_button(
         "Download summary (CSV)",
         df_summary.to_csv(index=False).encode('utf-8'),
@@ -417,7 +419,8 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     if len(results) > 0:
         df_summary = make_diag_summary_table(results)
         st.subheader("ROC curve analysis and statistical diagnostic measures")
-        st.dataframe(df_summary, use_container_width=True)
+        # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
+        st.dataframe(df_summary, width='stretch')
         st.download_button(
             "Download summary (CSV)",
             df_summary.to_csv(index=False).encode('utf-8'),
@@ -462,7 +465,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             
             try:
                 # DeLong testini çalıştır <<< GÜNCELLENDİ
-                p_value = pydelong.delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
+                p_value = delong_roc.delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
                 p_display = f"{p_value[0]:.4g}" if p_value[0] >= 0.0001 else "<0.0001"
                 
                 delong_results.append({
@@ -478,7 +481,8 @@ if df is not None and analysis_type == "Multiple ROC Curves":
                 })
         
         if delong_results:
-            st.dataframe(pd.DataFrame(delong_results), use_container_width=True)
+            # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
+            st.dataframe(pd.DataFrame(delong_results), width='stretch')
 
 # =========================
 # Yüklenmemiş dosya durumu
