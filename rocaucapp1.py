@@ -119,13 +119,22 @@ def _compute_midrank(x):
     T2[J] = T
     return T2
 
+# <<< GÜNCELLENDİ: Bu fonksiyondaki mantık hatası p=1 çıkmasına neden oluyordu
 def _compute_auc(y_true, y_pred):
     n_pos = np.sum(y_true == 1)
     n_neg = np.sum(y_true == 0)
     if n_pos == 0 or n_neg == 0:
         return np.nan
-    R_pos = _compute_midrank(y_pred[y_true == 1])
-    R_neg = _compute_midrank(y_pred[y_true == 0])
+    
+    # Düzeltme: Sıralama (rank) tüm 'y_pred' üzerinden hesaplanmalı
+    ranks = _compute_midrank(y_pred)
+    # Sadece pozitif gruptakilerin sıralamalarını al
+    R_pos = ranks[y_true == 1]
+    
+    # Hatalı kod (silindi):
+    # R_pos = _compute_midrank(y_pred[y_true == 1])
+    # R_neg = _compute_midrank(y_pred[y_true == 0]) 
+    
     auc = (np.sum(R_pos) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
     return auc
 
@@ -500,7 +509,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
                             file_name=f"multi_roc.{ext}", mime=mime)
     
-    # <<< GÜNCELLENDİ: DeLong Testi Bölümü
+    # DeLong Testi Karşılaştırma Bölümü
     if len(delong_data_store) >= 2:
         st.subheader("DeLong Test for AUC Comparison (Paired Data)")
         st.info(
@@ -516,27 +525,22 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         
         delong_results = []
         
-        # <<< YENİ: Kullanıcının referans seçmesi için selectbox
-        # Özel isimleri ve orijinal değişken adlarını eşleştir
         predictor_custom_names_map = {custom_names.get(var, var): var for var in predictor_vars}
         options = list(predictor_custom_names_map.keys())
         
         ref_name_selected = st.selectbox(
             "DeLong Testi için Referans (Ref) Belirteci Seçin:",
             options=options,
-            index=0 # Varsayılan olarak ilkini seç
+            index=0 
         )
         
-        # Seçilen referans değişkenini al
         ref_var = predictor_custom_names_map[ref_name_selected]
         ref_name = ref_name_selected
         ref_scores_raw = pd.to_numeric(paired_data[ref_var], errors='coerce').to_numpy()
         ref_scores_roc = ref_scores_raw if higher_is_positive_multi else -ref_scores_raw
         
         
-        # <<< GÜNCELLENDİ: Tüm değişkenleri seçilen referansla karşılaştır
         for comp_var in predictor_vars:
-            # Referans değişkeni kendisiyle karşılaştırma
             if comp_var == ref_var:
                 continue
                 
