@@ -8,4 +8,3 @@ scipy
 scikit-learn
 openpyxl
 xlrd
-delong-roc
