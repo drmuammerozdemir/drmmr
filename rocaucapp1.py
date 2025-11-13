@@ -9,6 +9,7 @@ from sklearn.metrics import roc_curve, auc
 from scipy.stats import spearmanr, mannwhitneyu, norm
 from io import BytesIO
 import math
+import delong # <<< YENİ: DeLong testi için
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
@@ -85,6 +86,7 @@ def format_rate_with_ci(x, ci):
         return "NA"
     return f"{x*100:.0f} ({ci[0]*100:.1f}–{ci[1]*100:.1f})"
 
+# <<< GÜNCELLENDİ: Özet tabloya DOR satırı eklendi
 def make_diag_summary_table(result_dict_ordered_cols):
     rows = [
         ("AUC (95% CI)", "auc_ci"),
@@ -94,8 +96,9 @@ def make_diag_summary_table(result_dict_ordered_cols):
         ("Specificity (95% CI)", "spec"),
         ("PPV (95% CI)", "ppv"),
         ("NPV (95% CI)", "npv"),
-        ("LR+", "lr_pos"), # <<< YENİ
-        ("LR-", "lr_neg"), # <<< YENİ
+        ("LR+", "lr_pos"),
+        ("LR-", "lr_neg"),
+        ("DOR", "dor"), # <<< YENİ
     ]
     data = { "": [r[0] for r in rows] }
     for col, vals in result_dict_ordered_cols.items():
@@ -276,9 +279,10 @@ if df is not None and analysis_type == "Single ROC Curve":
         y_bin, y_scores.to_numpy(), thr_display, greater_is_positive=higher_is_positive
     )
     
-    # <<< YENİ: LR+ ve LR- Hesabı (bölme hatası kontrolü ile)
+    # <<< GÜNCELLENDİ: LR+, LR- ve DOR Hesabı eklendi
     lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
     lr_neg = (1 - sens) / spec if spec > 0 else np.nan
+    dor = lr_pos / lr_neg if (lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
 
     cut_rule = "≥" if higher_is_positive else "≤"
     summary = {
@@ -290,9 +294,9 @@ if df is not None and analysis_type == "Single ROC Curve":
             "spec": format_rate_with_ci(spec, spec_ci),
             "ppv":  format_rate_with_ci(ppv,  ppv_ci),
             "npv":  format_rate_with_ci(npv,  npv_ci),
-            # <<< YENİ: LR+ ve LR- formatlaması (NA kontrolü ile)
             "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
             "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
+            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA", # <<< YENİ
         }
     }
     df_summary = make_diag_summary_table(summary)
@@ -346,6 +350,9 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 
     fig, ax = plt.subplots(figsize=(7, 6))
     results = {}
+    
+    # <<< YENİ: DeLong testi için verileri saklamak amacıyla eklendi
+    delong_data_store = []
 
     for var in predictor_vars:
         y_scores = pd.to_numeric(df[var], errors='coerce')
@@ -357,6 +364,16 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             continue
 
         ys_for_roc = ys if higher_is_positive_multi else -ys
+        
+        # <<< YENİ: DeLong için veriyi sakla
+        delong_data_store.append({
+            "name": custom_names.get(var, var),
+            "var": var,
+            "y_true": yb,
+            "y_scores_raw": ys, # Orijinal skorlar (yön ayarı yapılmamış)
+            "y_scores_roc": ys_for_roc # ROC yön ayarlı skorlar
+        })
+        
         fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
         my_auc = auc(fpr, tpr)
         ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
@@ -370,9 +387,10 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             yb, ys, thr_display, greater_is_positive=higher_is_positive_multi
         )
         
-        # <<< YENİ: LR+ ve LR- Hesabı (bölme hatası kontrolü ile)
+        # <<< GÜNCELLENDİ: LR+, LR- ve DOR Hesabı eklendi
         lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
         lr_neg = (1 - sens) / spec if spec > 0 else np.nan
+        dor = lr_pos / lr_neg if (lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
 
         cut_rule = "≥" if higher_is_positive_multi else "≤"
         colname = custom_names.get(var, var)
@@ -384,9 +402,9 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             "spec": format_rate_with_ci(spec, spec_ci),
             "ppv":  format_rate_with_ci(ppv,  ppv_ci),
             "npv":  format_rate_with_ci(npv,  npv_ci),
-            # <<< YENİ: LR+ ve LR- formatlaması (NA kontrolü ile)
             "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
             "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
+            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA", # <<< YENİ
         }
 
     ax.plot([0, 1], [0, 1], linestyle='--')
@@ -417,6 +435,56 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         fig.savefig(buf, format=ext, bbox_inches="tight", dpi=300)
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
                             file_name=f"multi_roc.{ext}", mime=mime)
+    
+    # <<< YENİ: DeLong Testi Karşılaştırma Bölümü
+    if len(delong_data_store) >= 2:
+        st.subheader("DeLong Test for AUC Comparison (Paired Data)")
+        st.info(
+            "**DİKKAT:** İki AUC değerini istatistiksel olarak karşılaştırmak (DeLong testi) "
+            "için, her iki testin de **aynı denek grubu** üzerinde çalışılmış olması gerekir. "
+            "Aşağıdaki p-değerleri, yalnızca **tüm seçili belirteçler için tam veriye sahip olan** "
+            "denekler (listwise deletion) kullanılarak hesaplanmıştır. "
+            "Bu nedenle N (denek sayısı) yukarıdaki tablodan farklı olabilir."
+        )
+
+        # Tüm seçili belirteçler için ortak bir veri çerçevesi oluştur
+        paired_data = df[[outcome_var] + predictor_vars].dropna()
+        y_true_paired = (pd.to_numeric(paired_data[outcome_var], errors='coerce') == pos_label).astype(int).to_numpy()
+        
+        delong_results = []
+        
+        # Referans belirteç (ilk seçilen)
+        ref_var = predictor_vars[0]
+        ref_name = custom_names.get(ref_var, ref_var)
+        ref_scores_raw = pd.to_numeric(paired_data[ref_var], errors='coerce').to_numpy()
+        ref_scores_roc = ref_scores_raw if higher_is_positive_multi else -ref_scores_raw
+        
+        for i in range(1, len(predictor_vars)):
+            comp_var = predictor_vars[i]
+            comp_name = custom_names.get(comp_var, comp_var)
+            comp_scores_raw = pd.to_numeric(paired_data[comp_var], errors='coerce').to_numpy()
+            comp_scores_roc = comp_scores_raw if higher_is_positive_multi else -comp_scores_raw
+            
+            try:
+                # DeLong testini çalıştır
+                p_value = delong.delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
+                p_display = f"{p_value[0]:.4g}" if p_value[0] >= 0.0001 else "<0.0001"
+                
+                delong_results.append({
+                    "Comparison": f"**{ref_name}** (Ref) vs **{comp_name}**",
+                    "p-value": p_display,
+                    "N (paired)": len(y_true_paired)
+                })
+            except Exception as e:
+                delong_results.append({
+                    "Comparison": f"**{ref_name}** (Ref) vs **{comp_name}**",
+                    "p-value": f"Hata: {e}",
+                    "N (paired)": len(y_true_paired)
+                })
+        
+        if delong_results:
+            st.dataframe(pd.DataFrame(delong_results), use_container_width=True)
+
 
 # =========================
 # Yüklenmemiş dosya durumu
