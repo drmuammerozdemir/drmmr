@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pyreadstat
 from sklearn.metrics import roc_curve, auc
-from scipy.stats import spearmanr, mannwhitneyu, norm
+from scipy.stats import spearmanr, mannwhitneyu, norm, chi2
 from io import BytesIO
 import math
-import delong_roc # <<< GÜNCELLENDİ: Doğru kütüphane adı
+# <<< SİLİNDİ: Harici DeLong kütüphanesi kaldırıldı
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
@@ -29,7 +29,6 @@ def wilson_ci(successes, n, alpha=0.05):
 
 def bootstrap_auc_ci(y_true, y_score, n_boot=1000, alpha=0.05, random_state=42):
     rng = np.random.default_rng(random_state)
-    # AUC (temel)
     fpr, tpr, _ = roc_curve(y_true, y_score)
     base_auc = auc(fpr, tpr)
     n = len(y_true)
@@ -103,6 +102,78 @@ def make_diag_summary_table(result_dict_ordered_cols):
     for col, vals in result_dict_ordered_cols.items():
         data[col] = [vals[rkey] for _, rkey in rows]
     return pd.DataFrame(data)
+
+# <<< YENİ: DeLong testi için GEREKLİ TÜM YARDIMCI FONKSİYONLAR
+# Bu kod R'daki pROC paketinin uygulamasının bir Python portudur
+def _compute_midrank(x):
+    J = np.argsort(x)
+    Z = x[J]
+    N = len(x)
+    T = np.zeros(N, dtype=float)
+    i = 0
+    while i < N:
+        j = i
+        while j < N and Z[j] == Z[i]:
+            j += 1
+        T[i:j] = i + (j - i + 1) / 2.
+        i = j
+    T2 = np.empty(N, dtype=float)
+    T2[J] = T
+    return T2
+
+def _compute_auc(y_true, y_pred):
+    n_pos = np.sum(y_true == 1)
+    n_neg = np.sum(y_true == 0)
+    if n_pos == 0 or n_neg == 0:
+        return np.nan
+    R_pos = _compute_midrank(y_pred[y_true == 1])
+    R_neg = _compute_midrank(y_pred[y_true == 0])
+    auc = (np.sum(R_pos) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+    return auc
+
+def _compute_structural_components(y_true, y_pred):
+    n_pos = np.sum(y_true == 1)
+    n_neg = np.sum(y_true == 0)
+    if n_pos == 0 or n_neg == 0:
+        return np.nan, np.nan
+    
+    pos_scores = y_pred[y_true == 1]
+    neg_scores = y_pred[y_true == 0]
+    
+    v_pos = np.array([np.mean(neg_scores < s) for s in pos_scores])
+    v_neg = np.array([np.mean(pos_scores > s) for s in neg_scores])
+    
+    return v_pos, v_neg
+
+def delong_roc_test(y_true, y_pred1, y_pred2):
+    y_true = np.asarray(y_true)
+    y_pred1 = np.asarray(y_pred1)
+    y_pred2 = np.asarray(y_pred2)
+
+    n_pos = np.sum(y_true == 1)
+    n_neg = np.sum(y_true == 0)
+    
+    if n_pos == 0 or n_neg == 0:
+        return np.nan, np.nan
+
+    auc1 = _compute_auc(y_true, y_pred1)
+    auc2 = _compute_auc(y_true, y_pred2)
+    
+    v_pos1, v_neg1 = _compute_structural_components(y_true, y_pred1)
+    v_pos2, v_neg2 = _compute_structural_components(y_true, y_pred2)
+    
+    s_pos = np.cov(v_pos1 - v_pos2, v_pos1 - v_pos2, ddof=1)
+    s_neg = np.cov(v_neg1 - v_neg2, v_neg1 - v_neg2, ddof=1)
+    
+    var = (s_pos / n_pos) + (s_neg / n_neg)
+    
+    if var == 0:
+        z = np.inf * np.sign(auc1 - auc2)
+    else:
+        z = (auc1 - auc2) / np.sqrt(var)
+        
+    p_value = 2. * norm.sf(np.abs(z)) # İki yönlü p-değeri
+    return z, p_value
 
 # =========================
 # Dosya yükleme
@@ -434,7 +505,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
                             file_name=f"multi_roc.{ext}", mime=mime)
     
-    # <<< YENİ: DeLong Testi Karşılaştırma Bölümü
+    # <<< GÜNCELLENDİ: DeLong Testi Bölümü
     if len(delong_data_store) >= 2:
         st.subheader("DeLong Test for AUC Comparison (Paired Data)")
         st.info(
@@ -445,13 +516,11 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             "Bu nedenle N (denek sayısı) yukarıdaki tablodan farklı olabilir."
         )
 
-        # Tüm seçili belirteçler için ortak bir veri çerçevesi oluştur
         paired_data = df[[outcome_var] + predictor_vars].dropna()
         y_true_paired = (pd.to_numeric(paired_data[outcome_var], errors='coerce') == pos_label).astype(int).to_numpy()
         
         delong_results = []
         
-        # Referans belirteç (ilk seçilen)
         ref_var = predictor_vars[0]
         ref_name = custom_names.get(ref_var, ref_var)
         ref_scores_raw = pd.to_numeric(paired_data[ref_var], errors='coerce').to_numpy()
@@ -459,14 +528,14 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         
         for i in range(1, len(predictor_vars)):
             comp_var = predictor_vars[i]
-            comp_name = custom_names.get(comp_var, comp_var)
+            comp_name = custom_names.get(comp_var, comp_name)
             comp_scores_raw = pd.to_numeric(paired_data[comp_var], errors='coerce').to_numpy()
             comp_scores_roc = comp_scores_raw if higher_is_positive_multi else -comp_scores_raw
             
             try:
-                # DeLong testini çalıştır <<< GÜNCELLENDİ
-                p_value = delong_roc.delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
-                p_display = f"{p_value[0]:.4g}" if p_value[0] >= 0.0001 else "<0.0001"
+                # <<< GÜNCELLENDİ: Harici kütüphane yerine DAHİLİ fonksiyon çağrılıyor
+                z_stat, p_value = delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
+                p_display = f"{p_value:.4g}" if p_value >= 0.0001 else "<0.0001"
                 
                 delong_results.append({
                     "Comparison": f"**{ref_name}** (Ref) vs **{comp_name}**",
