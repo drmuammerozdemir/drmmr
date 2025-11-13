@@ -9,7 +9,7 @@ from sklearn.metrics import roc_curve, auc
 from scipy.stats import spearmanr, mannwhitneyu, norm, chi2
 from io import BytesIO
 import math
-# <<< SİLİNDİ: Harici DeLong kütüphanesi kaldırıldı
+
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
@@ -558,3 +558,4 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 # =========================
 if df is None:
     st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav, .xls, .xlsx).")
+
