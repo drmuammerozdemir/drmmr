@@ -4,8 +4,8 @@ numpy
 matplotlib
 seaborn
 pyreadstat
+scipy
 scikit-learn
 openpyxl
-scipy
-Xlrd
+xlrd
 delong
