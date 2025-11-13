@@ -10,7 +10,6 @@ from scipy.stats import spearmanr, mannwhitneyu, norm, chi2
 from io import BytesIO
 import math
 
-
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
 
@@ -103,8 +102,7 @@ def make_diag_summary_table(result_dict_ordered_cols):
         data[col] = [vals[rkey] for _, rkey in rows]
     return pd.DataFrame(data)
 
-# <<< YENİ: DeLong testi için GEREKLİ TÜM YARDIMCI FONKSİYONLAR
-# Bu kod R'daki pROC paketinin uygulamasının bir Python portudur
+# DeLong testi için GEREKLİ TÜM YARDIMCI FONKSİYONLAR
 def _compute_midrank(x):
     J = np.argsort(x)
     Z = x[J]
@@ -211,7 +209,6 @@ if uploaded_file:
 
 if df is not None:
     st.write('**Data Preview:**')
-    # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
     st.dataframe(df.head(), width='stretch')
 
 # =========================
@@ -372,7 +369,6 @@ if df is not None and analysis_type == "Single ROC Curve":
     df_summary = make_diag_summary_table(summary)
 
     st.subheader("ROC curve analysis and statistical diagnostic measures")
-    # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
     st.dataframe(df_summary, width='stretch')
     st.download_button(
         "Download summary (CSV)",
@@ -490,7 +486,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     if len(results) > 0:
         df_summary = make_diag_summary_table(results)
         st.subheader("ROC curve analysis and statistical diagnostic measures")
-        # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
         st.dataframe(df_summary, width='stretch')
         st.download_button(
             "Download summary (CSV)",
@@ -505,7 +500,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
                             file_name=f"multi_roc.{ext}", mime=mime)
     
-    # <<< GÜNCELLENDİ: DeLong Testi Bölümü
+    # DeLong Testi Karşılaştırma Bölümü
     if len(delong_data_store) >= 2:
         st.subheader("DeLong Test for AUC Comparison (Paired Data)")
         st.info(
@@ -528,12 +523,12 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         
         for i in range(1, len(predictor_vars)):
             comp_var = predictor_vars[i]
-            comp_name = custom_names.get(comp_var, comp_name)
+            # <<< GÜNCELLENDİ: Hata bu satırdaydı. comp_name -> comp_var
+            comp_name = custom_names.get(comp_var, comp_var)
             comp_scores_raw = pd.to_numeric(paired_data[comp_var], errors='coerce').to_numpy()
             comp_scores_roc = comp_scores_raw if higher_is_positive_multi else -comp_scores_raw
             
             try:
-                # <<< GÜNCELLENDİ: Harici kütüphane yerine DAHİLİ fonksiyon çağrılıyor
                 z_stat, p_value = delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
                 p_display = f"{p_value:.4g}" if p_value >= 0.0001 else "<0.0001"
                 
@@ -550,7 +545,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
                 })
         
         if delong_results:
-            # <<< GÜNCELLENDİ: Deprecation uyarısı için düzeltme
             st.dataframe(pd.DataFrame(delong_results), width='stretch')
 
 # =========================
@@ -558,4 +552,3 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 # =========================
 if df is None:
     st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav, .xls, .xlsx).")
-
