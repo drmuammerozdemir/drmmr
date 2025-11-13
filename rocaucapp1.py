@@ -11,10 +11,12 @@ from io import BytesIO
 import math
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
-st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav)')
+# BAŞLIK GÜNCELLENDİ
+st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
 
 # =========================
 # Yardımcı fonksiyonlar
+# (Bu bölüm değişmedi)
 # =========================
 def wilson_ci(successes, n, alpha=0.05):
     if n == 0:
@@ -103,11 +105,16 @@ def make_diag_summary_table(result_dict_ordered_cols):
 # =========================
 # Dosya yükleme
 # =========================
-uploaded_file = st.file_uploader("Upload CSV, TXT, or SPSS (.sav)", type=["csv", "txt", "sav"])
+# YÜKLEYİCİ GÜNCELLENDİ
+uploaded_file = st.file_uploader(
+    "Upload CSV, TXT, SPSS (.sav), or Excel (.xls, .xlsx)",
+    type=["csv", "txt", "sav", "xls", "xlsx"]
+)
 
 df = None
 if uploaded_file:
     file_extension = uploaded_file.name.split('.')[-1].lower()
+    
     if file_extension in ('csv', 'txt'):
         # Varsayılan ayarlarınızdaki gibi noktalı virgül ve ISO-8859-9
         try:
@@ -115,6 +122,20 @@ if uploaded_file:
         except Exception:
             uploaded_file.seek(0)
             df = pd.read_csv(uploaded_file, sep=';', encoding='latin1')
+    
+    # YENİ BLOK: Excel dosyalarını okumak için eklendi
+    elif file_extension in ('xls', 'xlsx'):
+        try:
+            # Önce modern .xlsx okuyucuyu (openpyxl) dene
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+        except Exception:
+            try:
+                # Başarısız olursa eski .xls okuyucuyu (xlrd) dene
+                uploaded_file.seek(0) # Dosya işaretçisini başa al
+                df = pd.read_excel(uploaded_file, engine='xlrd')
+            except Exception as e:
+                st.error(f"Excel dosyası okunamadı (Hata: {e}).")
+    
     elif file_extension == 'sav':
         with open("temp.sav", "wb") as f:
             f.write(uploaded_file.read())
@@ -126,6 +147,7 @@ if df is not None:
 
 # =========================
 # Sidebar: Genel seçenekler
+# (Bu bölüm değişmedi)
 # =========================
 st.sidebar.header("Global Plot Options")
 palette_choice = st.sidebar.selectbox(
@@ -146,6 +168,7 @@ analysis_type = st.sidebar.radio(
 
 # =========================
 # Correlation Heatmap
+# (Bu bölüm değişmedi)
 # =========================
 if df is not None and analysis_type == "Correlation Heatmap":
     correlation_vars = st.sidebar.multiselect(
@@ -198,10 +221,11 @@ if df is not None and analysis_type == "Correlation Heatmap":
         buf = BytesIO()
         fig.savefig(buf, format=ext, bbox_inches="tight", dpi=download_dpi)
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
-                           file_name=f"heatmap.{ext}", mime=mime)
+                            file_name=f"heatmap.{ext}", mime=mime)
 
 # =========================
 # Single ROC
+# (Bu bölüm değişmedi)
 # =========================
 if df is not None and analysis_type == "Single ROC Curve":
     outcome_var = st.sidebar.selectbox("Select Outcome Variable (0/1)", options=df.columns)
@@ -294,10 +318,11 @@ if df is not None and analysis_type == "Single ROC Curve":
         buf = BytesIO()
         fig.savefig(buf, format=ext, bbox_inches="tight", dpi=300)
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
-                           file_name=f"roc.{ext}", mime=mime)
+                            file_name=f"roc.{ext}", mime=mime)
 
 # =========================
 # Multiple ROC
+# (Bu bölüm değişmedi)
 # =========================
 if df is not None and analysis_type == "Multiple ROC Curves":
     outcome_var = st.sidebar.selectbox("Select Outcome Variable (0/1)", options=df.columns)
@@ -307,7 +332,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     y_label = st.sidebar.text_input("Y-axis Label", "True Positive Rate (Sensitivity)")
     footnote = st.text_area("Add footnote below the plot", value="")
     score_dir_multi = st.sidebar.radio("Score direction (applies to all predictors)",
-                                       ["Higher values indicate disease (+)", "Lower values indicate disease (−)"])
+                                        ["Higher values indicate disease (+)", "Lower values indicate disease (−)"])
     higher_is_positive_multi = score_dir_multi.startswith("Higher")
 
     custom_names = {}
@@ -393,13 +418,11 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         buf = BytesIO()
         fig.savefig(buf, format=ext, bbox_inches="tight", dpi=300)
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
-                           file_name=f"multi_roc.{ext}", mime=mime)
+                            file_name=f"multi_roc.{ext}", mime=mime)
 
 # =========================
 # Yüklenmemiş dosya durumu
 # =========================
 if df is None:
-    st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav).")
-
-
-
+    # BİLGİ MESAJI GÜNCELLENDİ
+    st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav, .xls, .xlsx).")
