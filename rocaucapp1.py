@@ -11,12 +11,10 @@ from io import BytesIO
 import math
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
-# BAŞLIK GÜNCELLENDİ
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
 
 # =========================
 # Yardımcı fonksiyonlar
-# (Bu bölüm değişmedi)
 # =========================
 def wilson_ci(successes, n, alpha=0.05):
     if n == 0:
@@ -96,6 +94,8 @@ def make_diag_summary_table(result_dict_ordered_cols):
         ("Specificity (95% CI)", "spec"),
         ("PPV (95% CI)", "ppv"),
         ("NPV (95% CI)", "npv"),
+        ("LR+", "lr_pos"), # <<< YENİ
+        ("LR-", "lr_neg"), # <<< YENİ
     ]
     data = { "": [r[0] for r in rows] }
     for col, vals in result_dict_ordered_cols.items():
@@ -105,7 +105,6 @@ def make_diag_summary_table(result_dict_ordered_cols):
 # =========================
 # Dosya yükleme
 # =========================
-# YÜKLEYİCİ GÜNCELLENDİ
 uploaded_file = st.file_uploader(
     "Upload CSV, TXT, SPSS (.sav), or Excel (.xls, .xlsx)",
     type=["csv", "txt", "sav", "xls", "xlsx"]
@@ -116,22 +115,18 @@ if uploaded_file:
     file_extension = uploaded_file.name.split('.')[-1].lower()
     
     if file_extension in ('csv', 'txt'):
-        # Varsayılan ayarlarınızdaki gibi noktalı virgül ve ISO-8859-9
         try:
             df = pd.read_csv(uploaded_file, sep=';', encoding='ISO-8859-9')
         except Exception:
             uploaded_file.seek(0)
             df = pd.read_csv(uploaded_file, sep=';', encoding='latin1')
     
-    # YENİ BLOK: Excel dosyalarını okumak için eklendi
     elif file_extension in ('xls', 'xlsx'):
         try:
-            # Önce modern .xlsx okuyucuyu (openpyxl) dene
             df = pd.read_excel(uploaded_file, engine='openpyxl')
         except Exception:
             try:
-                # Başarısız olursa eski .xls okuyucuyu (xlrd) dene
-                uploaded_file.seek(0) # Dosya işaretçisini başa al
+                uploaded_file.seek(0) 
                 df = pd.read_excel(uploaded_file, engine='xlrd')
             except Exception as e:
                 st.error(f"Excel dosyası okunamadı (Hata: {e}).")
@@ -147,7 +142,6 @@ if df is not None:
 
 # =========================
 # Sidebar: Genel seçenekler
-# (Bu bölüm değişmedi)
 # =========================
 st.sidebar.header("Global Plot Options")
 palette_choice = st.sidebar.selectbox(
@@ -168,7 +162,6 @@ analysis_type = st.sidebar.radio(
 
 # =========================
 # Correlation Heatmap
-# (Bu bölüm değişmedi)
 # =========================
 if df is not None and analysis_type == "Correlation Heatmap":
     correlation_vars = st.sidebar.multiselect(
@@ -193,9 +186,8 @@ if df is not None and analysis_type == "Correlation Heatmap":
 
     footnote = st.text_area("Add footnote below the plot", value="")
 
-    # Pairwise Spearman
     num = df[correlation_vars].apply(pd.to_numeric, errors='coerce')
-    corr_df = num.corr(method=method_key)  # pairwise; satır drop yok
+    corr_df = num.corr(method=method_key) 
 
     corr_df.rename(columns=custom_names, index=custom_names, inplace=True)
     mask = np.triu(np.ones_like(corr_df, dtype=bool))
@@ -216,7 +208,6 @@ if df is not None and analysis_type == "Correlation Heatmap":
     if footnote:
         st.markdown(f"**Note:** {footnote}")
 
-    # İndirmeler
     for ext, mime in [('png','image/png'), ('jpg','image/jpeg')]:
         buf = BytesIO()
         fig.savefig(buf, format=ext, bbox_inches="tight", dpi=download_dpi)
@@ -225,7 +216,6 @@ if df is not None and analysis_type == "Correlation Heatmap":
 
 # =========================
 # Single ROC
-# (Bu bölüm değişmedi)
 # =========================
 if df is not None and analysis_type == "Single ROC Curve":
     outcome_var = st.sidebar.selectbox("Select Outcome Variable (0/1)", options=df.columns)
@@ -250,19 +240,16 @@ if df is not None and analysis_type == "Single ROC Curve":
         st.error(f"ROC için ikili sonuç gerekli. Bulunan sınıflar: {classes}")
         st.stop()
 
-    # Pozitif sınıf: büyük olan değer
     pos_label = classes[-1]
     y_bin = (y_true == pos_label).astype(int).to_numpy()
     st.caption(f"Pozitif sınıf = {pos_label} (otomatik).")
 
     higher_is_positive = (score_dir.startswith("Higher"))
-    # ROC hesabı için oryantasyon
     y_sc_for_roc = y_scores if higher_is_positive else -y_scores
 
     fpr, tpr, thr_tmp = roc_curve(y_bin, y_sc_for_roc)
     roc_auc = auc(fpr, tpr)
 
-    # Grafik
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.plot(fpr, tpr, lw=2, label=f'{custom_name} (AUC = {roc_auc:.3f})')
     ax.plot([0, 1], [0, 1], linestyle='--')
@@ -277,7 +264,6 @@ if df is not None and analysis_type == "Single ROC Curve":
     if footnote:
         st.markdown(f"**Note:** {footnote}")
 
-    # Özet tablo (AUC CI, p, eşik, duyarlılık vs.)
     auc_val, auc_ci = bootstrap_auc_ci(y_bin, y_sc_for_roc.to_numpy(), n_boot=1000, alpha=0.05, random_state=42)
     pos_scores = y_scores[y_bin==1]
     neg_scores = y_scores[y_bin==0]
@@ -289,6 +275,10 @@ if df is not None and analysis_type == "Single ROC Curve":
     (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
         y_bin, y_scores.to_numpy(), thr_display, greater_is_positive=higher_is_positive
     )
+    
+    # <<< YENİ: LR+ ve LR- Hesabı (bölme hatası kontrolü ile)
+    lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
+    lr_neg = (1 - sens) / spec if spec > 0 else np.nan
 
     cut_rule = "≥" if higher_is_positive else "≤"
     summary = {
@@ -300,6 +290,9 @@ if df is not None and analysis_type == "Single ROC Curve":
             "spec": format_rate_with_ci(spec, spec_ci),
             "ppv":  format_rate_with_ci(ppv,  ppv_ci),
             "npv":  format_rate_with_ci(npv,  npv_ci),
+            # <<< YENİ: LR+ ve LR- formatlaması (NA kontrolü ile)
+            "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
+            "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
         }
     }
     df_summary = make_diag_summary_table(summary)
@@ -313,7 +306,6 @@ if df is not None and analysis_type == "Single ROC Curve":
         "text/csv"
     )
 
-    # Görsel indirme
     for ext, mime in [('png','image/png'), ('jpg','image/jpeg')]:
         buf = BytesIO()
         fig.savefig(buf, format=ext, bbox_inches="tight", dpi=300)
@@ -322,7 +314,6 @@ if df is not None and analysis_type == "Single ROC Curve":
 
 # =========================
 # Multiple ROC
-# (Bu bölüm değişmedi)
 # =========================
 if df is not None and analysis_type == "Multiple ROC Curves":
     outcome_var = st.sidebar.selectbox("Select Outcome Variable (0/1)", options=df.columns)
@@ -370,7 +361,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         my_auc = auc(fpr, tpr)
         ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
 
-        # Özet: AUC CI, p, eşik, metrikler
         auc_val, auc_ci = bootstrap_auc_ci(yb, ys_for_roc, n_boot=1000, alpha=0.05, random_state=42)
         pval = mannwhitneyu(ys[yb==1], ys[yb==0], alternative='two-sided').pvalue
         p_disp = f"{pval:.3g}" if pval >= 0.001 else "<0.001"
@@ -379,6 +369,11 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
             yb, ys, thr_display, greater_is_positive=higher_is_positive_multi
         )
+        
+        # <<< YENİ: LR+ ve LR- Hesabı (bölme hatası kontrolü ile)
+        lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
+        lr_neg = (1 - sens) / spec if spec > 0 else np.nan
+
         cut_rule = "≥" if higher_is_positive_multi else "≤"
         colname = custom_names.get(var, var)
         results[colname] = {
@@ -389,6 +384,9 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             "spec": format_rate_with_ci(spec, spec_ci),
             "ppv":  format_rate_with_ci(ppv,  ppv_ci),
             "npv":  format_rate_with_ci(npv,  npv_ci),
+            # <<< YENİ: LR+ ve LR- formatlaması (NA kontrolü ile)
+            "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
+            "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
         }
 
     ax.plot([0, 1], [0, 1], linestyle='--')
@@ -424,5 +422,4 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 # Yüklenmemiş dosya durumu
 # =========================
 if df is None:
-    # BİLGİ MESAJI GÜNCELLENDİ
     st.info("Başlamak için sol üstten bir dosya yükleyin (.csv, .txt, .sav, .xls, .xlsx).")
