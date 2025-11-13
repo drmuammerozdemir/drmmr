@@ -9,4 +9,4 @@ scikit-learn
 openpyxl
 xlrd
 pydelong
-
+delong
