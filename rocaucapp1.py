@@ -143,6 +143,7 @@ def _compute_structural_components(y_true, y_pred):
     
     return v_pos, v_neg
 
+# <<< GÜNCELLENDİ: Hatanın olduğu fonksiyon
 def delong_roc_test(y_true, y_pred1, y_pred2):
     y_true = np.asarray(y_true)
     y_pred1 = np.asarray(y_pred1)
@@ -160,12 +161,13 @@ def delong_roc_test(y_true, y_pred1, y_pred2):
     v_pos1, v_neg1 = _compute_structural_components(y_true, y_pred1)
     v_pos2, v_neg2 = _compute_structural_components(y_true, y_pred2)
     
-    s_pos = np.cov(v_pos1 - v_pos2, v_pos1 - v_pos2, ddof=1)
-    s_neg = np.cov(v_neg1 - v_neg2, v_neg1 - v_neg2, ddof=1)
+    # <<< GÜNCELLENDİ: Hata bu iki satırdaydı. np.cov -> np.var
+    s_pos = np.var(v_pos1 - v_pos2, ddof=1)
+    s_neg = np.var(v_neg1 - v_neg2, ddof=1)
     
     var = (s_pos / n_pos) + (s_neg / n_neg)
     
-    if var == 0:
+    if var == 0: # Artık burası tek bir sayı (float) karşılaştırması
         z = np.inf * np.sign(auc1 - auc2)
     else:
         z = (auc1 - auc2) / np.sqrt(var)
@@ -523,7 +525,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         
         for i in range(1, len(predictor_vars)):
             comp_var = predictor_vars[i]
-            # <<< GÜNCELLENDİ: Hata bu satırdaydı. comp_name -> comp_var
             comp_name = custom_names.get(comp_var, comp_var)
             comp_scores_raw = pd.to_numeric(paired_data[comp_var], errors='coerce').to_numpy()
             comp_scores_roc = comp_scores_raw if higher_is_positive_multi else -comp_scores_raw
