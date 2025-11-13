@@ -143,7 +143,6 @@ def _compute_structural_components(y_true, y_pred):
     
     return v_pos, v_neg
 
-# <<< GÜNCELLENDİ: Hatanın olduğu fonksiyon
 def delong_roc_test(y_true, y_pred1, y_pred2):
     y_true = np.asarray(y_true)
     y_pred1 = np.asarray(y_pred1)
@@ -161,13 +160,12 @@ def delong_roc_test(y_true, y_pred1, y_pred2):
     v_pos1, v_neg1 = _compute_structural_components(y_true, y_pred1)
     v_pos2, v_neg2 = _compute_structural_components(y_true, y_pred2)
     
-    # <<< GÜNCELLENDİ: Hata bu iki satırdaydı. np.cov -> np.var
     s_pos = np.var(v_pos1 - v_pos2, ddof=1)
     s_neg = np.var(v_neg1 - v_neg2, ddof=1)
     
     var = (s_pos / n_pos) + (s_neg / n_neg)
     
-    if var == 0: # Artık burası tek bir sayı (float) karşılaştırması
+    if var == 0:
         z = np.inf * np.sign(auc1 - auc2)
     else:
         z = (auc1 - auc2) / np.sqrt(var)
@@ -502,7 +500,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         st.download_button(f"Download {ext.upper()}", buf.getvalue(),
                             file_name=f"multi_roc.{ext}", mime=mime)
     
-    # DeLong Testi Karşılaştırma Bölümü
+    # <<< GÜNCELLENDİ: DeLong Testi Bölümü
     if len(delong_data_store) >= 2:
         st.subheader("DeLong Test for AUC Comparison (Paired Data)")
         st.info(
@@ -518,13 +516,30 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         
         delong_results = []
         
-        ref_var = predictor_vars[0]
-        ref_name = custom_names.get(ref_var, ref_var)
+        # <<< YENİ: Kullanıcının referans seçmesi için selectbox
+        # Özel isimleri ve orijinal değişken adlarını eşleştir
+        predictor_custom_names_map = {custom_names.get(var, var): var for var in predictor_vars}
+        options = list(predictor_custom_names_map.keys())
+        
+        ref_name_selected = st.selectbox(
+            "DeLong Testi için Referans (Ref) Belirteci Seçin:",
+            options=options,
+            index=0 # Varsayılan olarak ilkini seç
+        )
+        
+        # Seçilen referans değişkenini al
+        ref_var = predictor_custom_names_map[ref_name_selected]
+        ref_name = ref_name_selected
         ref_scores_raw = pd.to_numeric(paired_data[ref_var], errors='coerce').to_numpy()
         ref_scores_roc = ref_scores_raw if higher_is_positive_multi else -ref_scores_raw
         
-        for i in range(1, len(predictor_vars)):
-            comp_var = predictor_vars[i]
+        
+        # <<< GÜNCELLENDİ: Tüm değişkenleri seçilen referansla karşılaştır
+        for comp_var in predictor_vars:
+            # Referans değişkeni kendisiyle karşılaştırma
+            if comp_var == ref_var:
+                continue
+                
             comp_name = custom_names.get(comp_var, comp_var)
             comp_scores_raw = pd.to_numeric(paired_data[comp_var], errors='coerce').to_numpy()
             comp_scores_roc = comp_scores_raw if higher_is_positive_multi else -comp_scores_raw
