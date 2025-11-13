@@ -9,7 +9,7 @@ from sklearn.metrics import roc_curve, auc
 from scipy.stats import spearmanr, mannwhitneyu, norm
 from io import BytesIO
 import math
-import delong # <<< YENİ: DeLong testi için
+import pydelong # <<< GÜNCELLENDİ: DeLong testi için pydelong kullan
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
@@ -86,7 +86,6 @@ def format_rate_with_ci(x, ci):
         return "NA"
     return f"{x*100:.0f} ({ci[0]*100:.1f}–{ci[1]*100:.1f})"
 
-# <<< GÜNCELLENDİ: Özet tabloya DOR satırı eklendi
 def make_diag_summary_table(result_dict_ordered_cols):
     rows = [
         ("AUC (95% CI)", "auc_ci"),
@@ -98,7 +97,7 @@ def make_diag_summary_table(result_dict_ordered_cols):
         ("NPV (95% CI)", "npv"),
         ("LR+", "lr_pos"),
         ("LR-", "lr_neg"),
-        ("DOR", "dor"), # <<< YENİ
+        ("DOR", "dor"),
     ]
     data = { "": [r[0] for r in rows] }
     for col, vals in result_dict_ordered_cols.items():
@@ -279,7 +278,6 @@ if df is not None and analysis_type == "Single ROC Curve":
         y_bin, y_scores.to_numpy(), thr_display, greater_is_positive=higher_is_positive
     )
     
-    # <<< GÜNCELLENDİ: LR+, LR- ve DOR Hesabı eklendi
     lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
     lr_neg = (1 - sens) / spec if spec > 0 else np.nan
     dor = lr_pos / lr_neg if (lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
@@ -296,7 +294,7 @@ if df is not None and analysis_type == "Single ROC Curve":
             "npv":  format_rate_with_ci(npv,  npv_ci),
             "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
             "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
-            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA", # <<< YENİ
+            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA",
         }
     }
     df_summary = make_diag_summary_table(summary)
@@ -351,7 +349,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     fig, ax = plt.subplots(figsize=(7, 6))
     results = {}
     
-    # <<< YENİ: DeLong testi için verileri saklamak amacıyla eklendi
     delong_data_store = []
 
     for var in predictor_vars:
@@ -365,13 +362,12 @@ if df is not None and analysis_type == "Multiple ROC Curves":
 
         ys_for_roc = ys if higher_is_positive_multi else -ys
         
-        # <<< YENİ: DeLong için veriyi sakla
         delong_data_store.append({
             "name": custom_names.get(var, var),
             "var": var,
             "y_true": yb,
-            "y_scores_raw": ys, # Orijinal skorlar (yön ayarı yapılmamış)
-            "y_scores_roc": ys_for_roc # ROC yön ayarlı skorlar
+            "y_scores_raw": ys, 
+            "y_scores_roc": ys_for_roc 
         })
         
         fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
@@ -387,7 +383,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             yb, ys, thr_display, greater_is_positive=higher_is_positive_multi
         )
         
-        # <<< GÜNCELLENDİ: LR+, LR- ve DOR Hesabı eklendi
         lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
         lr_neg = (1 - sens) / spec if spec > 0 else np.nan
         dor = lr_pos / lr_neg if (lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
@@ -404,7 +399,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             "npv":  format_rate_with_ci(npv,  npv_ci),
             "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
             "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
-            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA", # <<< YENİ
+            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA",
         }
 
     ax.plot([0, 1], [0, 1], linestyle='--')
@@ -466,8 +461,8 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             comp_scores_roc = comp_scores_raw if higher_is_positive_multi else -comp_scores_raw
             
             try:
-                # DeLong testini çalıştır
-                p_value = delong.delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
+                # DeLong testini çalıştır <<< GÜNCELLENDİ
+                p_value = pydelong.delong_roc_test(y_true_paired, ref_scores_roc, comp_scores_roc)
                 p_display = f"{p_value[0]:.4g}" if p_value[0] >= 0.0001 else "<0.0001"
                 
                 delong_results.append({
@@ -484,7 +479,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         
         if delong_results:
             st.dataframe(pd.DataFrame(delong_results), use_container_width=True)
-
 
 # =========================
 # Yüklenmemiş dosya durumu
