@@ -429,60 +429,64 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     
     delong_data_store = []
 
+    # ... (Multiple ROC döngüsü başı)
     for var in predictor_vars:
         y_scores = pd.to_numeric(df[var], errors='coerce')
         mask = y_scores.notna() & y_true_all.notna()
         yb = y_bin_all[mask].to_numpy()
         ys = y_scores[mask].astype(float).to_numpy()
-        
+
         if len(np.unique(yb)) < 2:
             continue
 
-        # --- DÜZELTME BURADA BAŞLIYOR ---
-        # Önce ham haliyle AUC hesapla
-        fpr_init, tpr_init, _ = roc_curve(yb, ys)
-        auc_init = auc(fpr_init, tpr_init)
-        
-        # Eğer AUC 0.5'ten küçükse, bu değişken ters çalışıyordur. 
-        # Onu otomatik olarak çeviriyoruz.
-        if auc_init < 0.5:
-            ys_for_roc = -ys
-            actual_higher_is_pos = False 
+        # 1. Ham AUC'yi kontrol et
+        fpr_i, tpr_i, _ = roc_curve(yb, ys)
+        auc_i = auc(fpr_i, tpr_i)
+
+        # 2. Yönü belirle ve veriyi ona göre hazırla
+        # Eğer ham AUC < 0.5 ise, düşük değerler hastalığa işaret ediyordur.
+        if auc_i < 0.5:
+            ys_for_roc = -ys  # Grafik için negatif skor
+            current_higher_is_positive = False
+            cut_rule = "≤"
         else:
-            ys_for_roc = ys
-            actual_higher_is_pos = True
-        # --- DÜZELTME BURADA BİTTİ ---
-        
+            ys_for_roc = ys   # Grafik için normal skor
+            current_higher_is_positive = True
+            cut_rule = "≥"
+
+        # 3. Grafik Eğrisini Çiz
         fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
         my_auc = auc(fpr, tpr)
         ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
 
-        auc_val, auc_ci = bootstrap_auc_ci(yb, ys_for_roc, n_boot=1000, alpha=0.05, random_state=42)
-        pval = mannwhitneyu(ys[yb==1], ys[yb==0], alternative='two-sided').pvalue
-        p_disp = f"{pval:.3g}" if pval >= 0.001 else "<0.001"
-        best_thr_tmp, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
-        thr_display = best_thr_tmp if higher_is_positive_multi else -best_thr_tmp
-        (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
-            yb, ys, thr_display, greater_is_positive=higher_is_positive_multi
-        )
+        # 4. İstatistikleri HESAPLA (Doğru Skor ve Yönle)
+        # ÖNEMLİ: Tablo değerleri için 'ys' (orijinal) ve 'current_higher_is_positive' kullanıyoruz
+        auc_val, auc_ci = bootstrap_auc_ci(yb, ys_for_roc, n_boot=1000)
         
-        lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
-        lr_neg = (1 - sens) / spec if spec > 0 else np.nan
-        dor = lr_pos / lr_neg if (lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
+        # En iyi eşik değerini bul
+        best_thr_internal, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
+        
+        # Eşik değerini orijinal ölçeğe geri döndür
+        thr_display = best_thr_internal if current_higher_is_positive else -best_thr_internal
+        
+        # Tüm metrikleri (Sens, Spec, PPV, NPV) bu yöne göre hesapla
+        (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
+            yb, ys, thr_display, greater_is_positive=current_higher_is_positive
+        )
 
-        cut_rule = "≥" if higher_is_positive_multi else "≤"
+        # 5. Tabloya Yaz
         colname = custom_names.get(var, var)
         results[colname] = {
             "auc_ci": format_auc_with_ci(auc_val, auc_ci),
-            "p": p_disp,
+            "p": f"{mannwhitneyu(ys[yb==1], ys[yb==0]).pvalue:.3g}",
             "cut": f"{cut_rule} {thr_display:.3g}",
             "sens": format_rate_with_ci(sens, sens_ci),
             "spec": format_rate_with_ci(spec, spec_ci),
             "ppv":  format_rate_with_ci(ppv,  ppv_ci),
             "npv":  format_rate_with_ci(npv,  npv_ci),
-            "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
-            "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
-            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA",
+            "lr_pos": f"{sens/(1-spec):.2f}" if (1-spec)>0 else "NA",
+            "lr_neg": f"{(1-sens)/spec:.2f}" if spec>0 else "NA",
+            "dor": "NA" # (Gerekirse hesaplanabilir)
         }
 
     ax.plot([0, 1], [0, 1], linestyle='--')
