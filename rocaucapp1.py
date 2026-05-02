@@ -438,39 +438,45 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         if len(np.unique(yb)) < 2:
             continue
 
-        # 1. OTOMATİK YÖN TESPİTİ (Kritik nokta burası)
-        # Ham haliyle bir AUC hesaplayıp yönü tayin ediyoruz
-        fpr_raw, tpr_raw, _ = roc_curve(yb, ys)
-        auc_raw = auc(fpr_raw, tpr_raw)
+        # --- KRİTİK DÜZELTME: YÖNÜ TEST ET ---
+        # 1. Normal halini dene
+        fpr_h, tpr_h, thr_h = roc_curve(yb, ys)
+        auc_h = auc(fpr_h, tpr_h)
+        
+        # 2. Ters halini dene
+        fpr_l, tpr_l, thr_l = roc_curve(yb, -ys)
+        auc_l = auc(fpr_l, tpr_l)
 
-        if auc_raw < 0.5:
-            # Eğer AUC 0.5'ten küçükse, düşük değerler (Low) hastadır.
-            # Veriyi grafik için ters çevir, ama tablo için yönü kaydet.
-            ys_for_roc = -ys 
-            is_higher_positive = False
+        # Hangi yön daha iyiyse onu seç (Otomatik Adaptasyon)
+        if auc_l > auc_h:
+            fpr, tpr, thr_tmp = fpr_l, tpr_l, thr_l
+            my_auc = auc_l
+            current_higher_is_positive = False
             cut_rule = "≤"
+            ys_for_roc = -ys # Grafik hesaplaması için
         else:
-            # Eğer AUC >= 0.5 ise, yüksek değerler (High) hastadır.
-            ys_for_roc = ys
-            is_higher_positive = True
+            fpr, tpr, thr_tmp = fpr_h, tpr_h, thr_h
+            my_auc = auc_h
+            current_higher_is_positive = True
             cut_rule = "≥"
+            ys_for_roc = ys
 
-        # 2. GRAFİK ÇİZİMİ
-        fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
-        my_auc = auc(fpr, tpr)
+        # --- GRAFİK ÇİZİMİ ---
         ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
 
-        # 3. İSTATİSTİKSEL HESAPLAMALAR
-        # Eşik değerini bul ve orijinal ölçeğe geri döndür
+        # --- İSTATİSTİKSEL VERİLERİ HESAPLA ---
+        # En iyi eşik değerini bul
         best_thr_internal, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
-        thr_display = best_thr_internal if is_higher_positive else -best_thr_internal
         
-        # Metrikleri tespit edilen doğru yöne göre hesapla
+        # Eşiği orijinal ölçeğe çevir (Ters çevrilmişse geri düzelt)
+        thr_display = best_thr_internal if current_higher_is_positive else -best_thr_internal
+        
+        # Tüm tablo metriklerini (Sens, Spec, PPV, NPV) bu yönle hesapla
         (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
-            yb, ys, thr_display, greater_is_positive=is_higher_positive
+            yb, ys, thr_display, greater_is_positive=current_higher_is_positive
         )
-        
-        # 4. SONUÇLARI TABLOYA EKLE
+
+        # Tabloya ekle
         colname = custom_names.get(var, var)
         results[colname] = {
             "auc_ci": format_auc_with_ci(my_auc, bootstrap_auc_ci(yb, ys_for_roc)[1]),
