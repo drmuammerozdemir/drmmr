@@ -429,7 +429,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     
     delong_data_store = []
 
-    # ... (Multiple ROC döngüsü başı)
     for var in predictor_vars:
         y_scores = pd.to_numeric(df[var], errors='coerce')
         mask = y_scores.notna() & y_true_all.notna()
@@ -439,45 +438,42 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         if len(np.unique(yb)) < 2:
             continue
 
-        # 1. Ham AUC'yi kontrol et
-        fpr_i, tpr_i, _ = roc_curve(yb, ys)
-        auc_i = auc(fpr_i, tpr_i)
+        # 1. OTOMATİK YÖN TESPİTİ (Kritik nokta burası)
+        # Ham haliyle bir AUC hesaplayıp yönü tayin ediyoruz
+        fpr_raw, tpr_raw, _ = roc_curve(yb, ys)
+        auc_raw = auc(fpr_raw, tpr_raw)
 
-        # 2. Yönü belirle ve veriyi ona göre hazırla
-        # Eğer ham AUC < 0.5 ise, düşük değerler hastalığa işaret ediyordur.
-        if auc_i < 0.5:
-            ys_for_roc = -ys  # Grafik için negatif skor
-            current_higher_is_positive = False
+        if auc_raw < 0.5:
+            # Eğer AUC 0.5'ten küçükse, düşük değerler (Low) hastadır.
+            # Veriyi grafik için ters çevir, ama tablo için yönü kaydet.
+            ys_for_roc = -ys 
+            is_higher_positive = False
             cut_rule = "≤"
         else:
-            ys_for_roc = ys   # Grafik için normal skor
-            current_higher_is_positive = True
+            # Eğer AUC >= 0.5 ise, yüksek değerler (High) hastadır.
+            ys_for_roc = ys
+            is_higher_positive = True
             cut_rule = "≥"
 
-        # 3. Grafik Eğrisini Çiz
+        # 2. GRAFİK ÇİZİMİ
         fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
         my_auc = auc(fpr, tpr)
         ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
 
-        # 4. İstatistikleri HESAPLA (Doğru Skor ve Yönle)
-        # ÖNEMLİ: Tablo değerleri için 'ys' (orijinal) ve 'current_higher_is_positive' kullanıyoruz
-        auc_val, auc_ci = bootstrap_auc_ci(yb, ys_for_roc, n_boot=1000)
-        
-        # En iyi eşik değerini bul
+        # 3. İSTATİSTİKSEL HESAPLAMALAR
+        # Eşik değerini bul ve orijinal ölçeğe geri döndür
         best_thr_internal, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
+        thr_display = best_thr_internal if is_higher_positive else -best_thr_internal
         
-        # Eşik değerini orijinal ölçeğe geri döndür
-        thr_display = best_thr_internal if current_higher_is_positive else -best_thr_internal
-        
-        # Tüm metrikleri (Sens, Spec, PPV, NPV) bu yöne göre hesapla
+        # Metrikleri tespit edilen doğru yöne göre hesapla
         (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
-            yb, ys, thr_display, greater_is_positive=current_higher_is_positive
+            yb, ys, thr_display, greater_is_positive=is_higher_positive
         )
-
-        # 5. Tabloya Yaz
+        
+        # 4. SONUÇLARI TABLOYA EKLE
         colname = custom_names.get(var, var)
         results[colname] = {
-            "auc_ci": format_auc_with_ci(auc_val, auc_ci),
+            "auc_ci": format_auc_with_ci(my_auc, bootstrap_auc_ci(yb, ys_for_roc)[1]),
             "p": f"{mannwhitneyu(ys[yb==1], ys[yb==0]).pvalue:.3g}",
             "cut": f"{cut_rule} {thr_display:.3g}",
             "sens": format_rate_with_ci(sens, sens_ci),
@@ -486,7 +482,7 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             "npv":  format_rate_with_ci(npv,  npv_ci),
             "lr_pos": f"{sens/(1-spec):.2f}" if (1-spec)>0 else "NA",
             "lr_neg": f"{(1-sens)/spec:.2f}" if spec>0 else "NA",
-            "dor": "NA" # (Gerekirse hesaplanabilir)
+            "dor": "NA"
         }
 
     ax.plot([0, 1], [0, 1], linestyle='--')
