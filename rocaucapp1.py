@@ -434,19 +434,24 @@ if df is not None and analysis_type == "Multiple ROC Curves":
         mask = y_scores.notna() & y_true_all.notna()
         yb = y_bin_all[mask].to_numpy()
         ys = y_scores[mask].astype(float).to_numpy()
+        
         if len(np.unique(yb)) < 2:
-            st.warning(f"'{var}' için iki sınıf yok, atlandı.")
             continue
 
-        ys_for_roc = ys if higher_is_positive_multi else -ys
+        # --- DÜZELTME BURADA BAŞLIYOR ---
+        # Önce ham haliyle AUC hesapla
+        fpr_init, tpr_init, _ = roc_curve(yb, ys)
+        auc_init = auc(fpr_init, tpr_init)
         
-        delong_data_store.append({
-            "name": custom_names.get(var, var),
-            "var": var,
-            "y_true": yb,
-            "y_scores_raw": ys, 
-            "y_scores_roc": ys_for_roc 
-        })
+        # Eğer AUC 0.5'ten küçükse, bu değişken ters çalışıyordur. 
+        # Onu otomatik olarak çeviriyoruz.
+        if auc_init < 0.5:
+            ys_for_roc = -ys
+            actual_higher_is_pos = False 
+        else:
+            ys_for_roc = ys
+            actual_higher_is_pos = True
+        # --- DÜZELTME BURADA BİTTİ ---
         
         fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
         my_auc = auc(fpr, tpr)
