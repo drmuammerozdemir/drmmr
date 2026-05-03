@@ -440,12 +440,12 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     
         fpr_h, tpr_h, thr_h = roc_curve(yb, ys)
         auc_h = auc(fpr_h, tpr_h)
-        fpr_l, tpr_l, thr_l = roc_curve(yb, -ys)
-        auc_l = auc(fpr_l, tpr_l)
-    
-        if auc_l > auc_h:
-            fpr, tpr, thr_tmp = fpr_l, tpr_l, thr_l
-            my_auc = auc_l
+        
+        # Her zaman AUC > 0.5 olacak şekilde zorla
+        if auc_h < 0.5:
+            auc_h = 1 - auc_h
+            fpr, tpr, thr_tmp = roc_curve(yb, -ys)
+            my_auc = auc(fpr, tpr)
             current_higher_is_positive = False
             cut_rule = "≤"
             ys_for_roc = -ys
