@@ -9,6 +9,7 @@ from sklearn.metrics import roc_curve, auc
 from scipy.stats import spearmanr, mannwhitneyu, norm, chi2
 from io import BytesIO
 import math
+from scipy.interpolate import interp1d
 
 st.set_page_config(page_title="ROC AUC & Correlation Heatmap", layout="wide")
 st.title('🔬 ROC AUC & Correlation Heatmap Dashboard (.csv, .txt, .sav, .xls, .xlsx)')
@@ -445,8 +446,13 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             my_auc = auc(fpr, tpr)
             cut_rule = "≤"
 
-        # GRAFİK
-        ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
+        if len(fpr) > 3:
+            fpr_smooth = np.linspace(0, 1, 200)
+            interp_func = interp1d(fpr, tpr, kind='linear', bounds_error=False, fill_value=(0, 1))
+            tpr_smooth = np.maximum.accumulate(interp_func(fpr_smooth))
+            ax.plot(fpr_smooth, tpr_smooth, lw=2, label=...)
+        else:
+            ax.plot(fpr, tpr, lw=2, label=...)
 
         # METRİKLER
         best_thr_internal, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
