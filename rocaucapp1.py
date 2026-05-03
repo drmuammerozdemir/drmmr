@@ -430,68 +430,68 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     delong_data_store = []
 
     for var in predictor_vars:
-    y_scores = pd.to_numeric(df[var], errors='coerce')
-    mask = y_scores.notna() & y_true_all.notna()
-    yb = y_bin_all[mask].to_numpy()
-    ys = y_scores[mask].astype(float).to_numpy()
-
-    if len(np.unique(yb)) < 2:
-        continue
-
-    fpr_h, tpr_h, thr_h = roc_curve(yb, ys)
-    auc_h = auc(fpr_h, tpr_h)
-    fpr_l, tpr_l, thr_l = roc_curve(yb, -ys)
-    auc_l = auc(fpr_l, tpr_l)
-
-    if auc_l > auc_h:
-        fpr, tpr, thr_tmp = fpr_l, tpr_l, thr_l
-        my_auc = auc_l
-        current_higher_is_positive = False
-        cut_rule = "≤"
-        ys_for_roc = -ys
-    else:
-        fpr, tpr, thr_tmp = fpr_h, tpr_h, thr_h
-        my_auc = auc_h
-        current_higher_is_positive = True
-        cut_rule = "≥"
-        ys_for_roc = ys
-
-    ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
-
-    best_thr_internal, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
-    thr_display = best_thr_internal if current_higher_is_positive else -best_thr_internal
-
-    (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
-        yb, ys, thr_display, greater_is_positive=current_higher_is_positive
-    )
-
-    # ✅ DeLong için kaydet
-    delong_data_store.append((var, ys_for_roc))
-
-    colname = custom_names.get(var, var)
+        y_scores = pd.to_numeric(df[var], errors='coerce')
+        mask = y_scores.notna() & y_true_all.notna()
+        yb = y_bin_all[mask].to_numpy()
+        ys = y_scores[mask].astype(float).to_numpy()
     
-    # ✅ p-değerini doğru yönde hesapla
-    pos_s = ys_for_roc[yb == 1]
-    neg_s = ys_for_roc[yb == 0]
-    p_val = mannwhitneyu(pos_s, neg_s, alternative='two-sided').pvalue
-    p_disp = f"{p_val:.3g}" if p_val >= 0.001 else "<0.001"
-
-    lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
-    lr_neg = (1 - sens) / spec if spec > 0 else np.nan
-    dor = lr_pos / lr_neg if (lr_neg and lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
-
-    results[colname] = {
-        "auc_ci": format_auc_with_ci(my_auc, bootstrap_auc_ci(yb, ys_for_roc)[1]),
-        "p": p_disp,
-        "cut": f"{cut_rule} {thr_display:.3g}",
-        "sens": format_rate_with_ci(sens, sens_ci),
-        "spec": format_rate_with_ci(spec, spec_ci),
-        "ppv":  format_rate_with_ci(ppv,  ppv_ci),
-        "npv":  format_rate_with_ci(npv,  npv_ci),
-        "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
-        "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
-        "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA",
-    }
+        if len(np.unique(yb)) < 2:
+            continue
+    
+        fpr_h, tpr_h, thr_h = roc_curve(yb, ys)
+        auc_h = auc(fpr_h, tpr_h)
+        fpr_l, tpr_l, thr_l = roc_curve(yb, -ys)
+        auc_l = auc(fpr_l, tpr_l)
+    
+        if auc_l > auc_h:
+            fpr, tpr, thr_tmp = fpr_l, tpr_l, thr_l
+            my_auc = auc_l
+            current_higher_is_positive = False
+            cut_rule = "≤"
+            ys_for_roc = -ys
+        else:
+            fpr, tpr, thr_tmp = fpr_h, tpr_h, thr_h
+            my_auc = auc_h
+            current_higher_is_positive = True
+            cut_rule = "≥"
+            ys_for_roc = ys
+    
+        ax.plot(fpr, tpr, lw=2, label=f"{custom_names.get(var,var)} (AUC = {my_auc:.3f})")
+    
+        best_thr_internal, _, _ = youden_best_threshold(fpr, tpr, thr_tmp)
+        thr_display = best_thr_internal if current_higher_is_positive else -best_thr_internal
+    
+        (sens, sens_ci), (spec, spec_ci), (ppv, ppv_ci), (npv, npv_ci) = diag_metrics_with_ci(
+            yb, ys, thr_display, greater_is_positive=current_higher_is_positive
+        )
+    
+        # ✅ DeLong için kaydet
+        delong_data_store.append((var, ys_for_roc))
+    
+        colname = custom_names.get(var, var)
+        
+        # ✅ p-değerini doğru yönde hesapla
+        pos_s = ys_for_roc[yb == 1]
+        neg_s = ys_for_roc[yb == 0]
+        p_val = mannwhitneyu(pos_s, neg_s, alternative='two-sided').pvalue
+        p_disp = f"{p_val:.3g}" if p_val >= 0.001 else "<0.001"
+    
+        lr_pos = sens / (1 - spec) if (1 - spec) > 0 else np.nan
+        lr_neg = (1 - sens) / spec if spec > 0 else np.nan
+        dor = lr_pos / lr_neg if (lr_neg and lr_neg > 0 and not np.isnan(lr_pos)) else np.nan
+    
+        results[colname] = {
+            "auc_ci": format_auc_with_ci(my_auc, bootstrap_auc_ci(yb, ys_for_roc)[1]),
+            "p": p_disp,
+            "cut": f"{cut_rule} {thr_display:.3g}",
+            "sens": format_rate_with_ci(sens, sens_ci),
+            "spec": format_rate_with_ci(spec, spec_ci),
+            "ppv":  format_rate_with_ci(ppv,  ppv_ci),
+            "npv":  format_rate_with_ci(npv,  npv_ci),
+            "lr_pos": f"{lr_pos:.2f}" if not np.isnan(lr_pos) else "NA",
+            "lr_neg": f"{lr_neg:.2f}" if not np.isnan(lr_neg) else "NA",
+            "dor": f"{dor:.2f}" if not np.isnan(dor) else "NA",
+        }
 
     ax.plot([0, 1], [0, 1], linestyle='--')
     ax.set_xlim([0.0, 1.0])
