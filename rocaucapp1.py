@@ -430,8 +430,8 @@ if df is not None and analysis_type == "Multiple ROC Curves":
     delong_data_store = []
 
     for var in predictor_vars:
+        st.write(f"DEBUG - {var} işleniyor")  # <-- BU SATIR
         y_scores = pd.to_numeric(df[var], errors='coerce')
-        mask = y_scores.notna() & y_true_all.notna()
         yb = y_bin_all[mask].to_numpy()
         ys = y_scores[mask].astype(float).to_numpy()
     
