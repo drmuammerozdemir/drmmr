@@ -445,13 +445,6 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
             my_auc = auc(fpr, tpr)
             cut_rule = "≤"
-
-        if len(fpr) > 3:
-            fpr_smooth = np.linspace(0, 1, 200)
-            interp_func = interp1d(fpr, tpr, kind='linear', bounds_error=False, fill_value=(0, 1))
-            tpr_smooth = np.maximum.accumulate(interp_func(fpr_smooth))
-            ax.plot(fpr_smooth, tpr_smooth, lw=2, label=...)
-        else:
             ax.plot(fpr, tpr, lw=2, label=...)
 
         # METRİKLER
