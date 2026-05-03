@@ -313,7 +313,13 @@ if df is not None and analysis_type == "Single ROC Curve":
     roc_auc = auc(fpr, tpr)
 
     fig, ax = plt.subplots(figsize=(6, 6))
-    ax.plot(fpr, tpr, lw=2, label=f'{custom_name} (AUC = {roc_auc:.3f})')
+    if len(fpr) > 3:
+        fpr_smooth = np.linspace(0, 1, 200)
+        interp_func = interp1d(fpr, tpr, kind='linear', bounds_error=False, fill_value=(0, 1))
+        tpr_smooth = np.maximum.accumulate(interp_func(fpr_smooth))
+        ax.plot(fpr_smooth, tpr_smooth, lw=2, label=...)
+    else:
+        ax.plot(fpr, tpr, lw=2, label=...)
     ax.plot([0, 1], [0, 1], linestyle='--', color='gray')
     ax.set_xlim([0.0, 1.0])
     ax.set_ylim([0.0, 1.05])
@@ -445,6 +451,12 @@ if df is not None and analysis_type == "Multiple ROC Curves":
             fpr, tpr, thr_tmp = roc_curve(yb, ys_for_roc)
             my_auc = auc(fpr, tpr)
             cut_rule = "≤"
+        if len(fpr) > 3:
+            fpr_smooth = np.linspace(0, 1, 200)
+            interp_func = interp1d(fpr, tpr, kind='linear', bounds_error=False, fill_value=(0, 1))
+            tpr_smooth = np.maximum.accumulate(interp_func(fpr_smooth))
+            ax.plot(fpr_smooth, tpr_smooth, lw=2, label=...)
+        else:
             ax.plot(fpr, tpr, lw=2, label=...)
 
         # METRİKLER
