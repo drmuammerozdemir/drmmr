@@ -217,7 +217,7 @@ analysis_type = st.sidebar.radio(
 )
 
 # =========================
-# Correlation Heatmap
+# Correlation Heatmap (GÜNCELLENMİŞ BÖLÜM)
 # =========================
 if df is not None and analysis_type == "Correlation Heatmap":
     correlation_vars = st.sidebar.multiselect(
@@ -225,6 +225,7 @@ if df is not None and analysis_type == "Correlation Heatmap":
         options=df.columns.tolist(),
         default=[c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
     )
+
     if len(correlation_vars) < 2:
         st.warning("Select at least 2 variables.")
         st.stop()
@@ -240,33 +241,67 @@ if df is not None and analysis_type == "Correlation Heatmap":
 
     footnote = st.text_area("Add footnote below the plot", value="")
 
-    num = df[correlation_vars].apply(pd.to_numeric, errors='coerce')
-    corr_df = num.corr(method=method_key)
+    # Veriyi hazırla
+    num_data = df[correlation_vars].apply(pd.to_numeric, errors='coerce').dropna()
+    
+    # 1. Isı Haritası Hesaplamaları
+    corr_df = num_data.corr(method=method_key)
     corr_df.rename(columns=custom_names, index=custom_names, inplace=True)
     mask_tri = np.triu(np.ones_like(corr_df, dtype=bool))
 
-    fig, ax = plt.subplots(figsize=(12, 10))
+    # Görselleştirme
+    fig, ax = plt.subplots(figsize=(10, 8))
     sns.heatmap(
         corr_df, mask=mask_tri, cmap=palette_choice, center=0,
         annot=True, fmt=".2f", square=False, linewidths=.5,
-        cbar_kws={"shrink": .75}, ax=ax, annot_kws={"size":8}
+        cbar_kws={"shrink": .75}, ax=ax, annot_kws={"size":9}
     )
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right', fontsize=9)
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=9)
-    ax.set_title(heatmap_title, pad=12)
-    ax.set_aspect('equal', adjustable='box')
-    fig.tight_layout()
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+    ax.set_title(heatmap_title, pad=15)
     st.pyplot(fig)
+
+    # 2. İSTATİSTİKSEL DETAY TABLOSU (RHO VE P-DEĞERLERİ)
+    st.subheader(f"{corr_method} Correlation Details (Rho & p-values)")
+    
+    # Tüm çiftler için hesaplama yap
+    results_list = []
+    cols = correlation_vars
+    for i in range(len(cols)):
+        for j in range(i + 1, len(cols)):
+            v1, v2 = cols[i], cols[j]
+            if method_key == "spearman":
+                rho, p = spearmanr(num_data[v1], num_data[v2])
+            else:
+                from scipy.stats import pearsonr
+                rho, p = pearsonr(num_data[v1], num_data[v2])
+            
+            # Anlamlılık yıldızlarını belirle
+            stars = ""
+            if p < 0.001: stars = "***"
+            elif p < 0.01: stars = "**"
+            elif p < 0.05: stars = "*"
+            
+            results_list.append({
+                "Variable 1": custom_names[v1],
+                "Variable 2": custom_names[v2],
+                "Coefficient (r/ρ)": f"{rho:.3f}",
+                "p-value": f"{p:.4g}",
+                "Significance": stars
+            })
+    
+    detay_df = pd.DataFrame(results_list)
+    st.dataframe(detay_df, use_container_width=True)
+
+    # CSV İndirme Butonu
+    st.download_button(
+        label="Download Correlation Table (CSV)",
+        data=detay_df.to_csv(index=False).encode('utf-8'),
+        file_name="correlation_details.csv",
+        mime="text/csv"
+    )
 
     if footnote:
         st.markdown(f"**Note:** {footnote}")
-
-    for ext, mime in [('png','image/png'), ('jpg','image/jpeg')]:
-        buf = BytesIO()
-        fig.savefig(buf, format=ext, bbox_inches="tight", dpi=download_dpi)
-        st.download_button(f"Download {ext.upper()}", buf.getvalue(),
-                            file_name=f"heatmap.{ext}", mime=mime)
-
 # =========================
 # Single ROC
 # =========================
